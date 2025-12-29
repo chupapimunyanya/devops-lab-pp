@@ -1,0 +1,36 @@
+## --- Visual Studio & .NET ---
+# Тимчасові папки збірки (там лежать .exe та .dll)
+[Bb]in/
+[Oo]bj/
+
+# Налаштування користувача Visual Studio (щоб не конфліктували налаштування вікон)
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Логи та креш-дампи
+*.log
+*.dmp
+
+## --- Terraform (ДУЖЕ ВАЖЛИВО) ---
+# Тут зберігаються скачані плагіни провайдерів
+.terraform/
+.terraform.lock.hcl
+
+# УВАГА: Тут зберігається СТАН вашої інфраструктури, часто з паролями!
+# Ніколи не заливайте tfstate на GitHub у відкритому вигляді
+*.tfstate
+*.tfstate.backup
+
+## --- Secrets & Environment ---
+# Файли, де ви можете випадково зберегти ключі
+.env
+*.pem
+*.key
+
+## --- OS Generated ---
+# Сміття від Windows та Mac
+Thumbs.db
+.DS_Store

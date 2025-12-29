@@ -1,0 +1,74 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+
+env:
+  REGISTRY: ghcr.io
+  # Вказує назву образу автоматично на основі назви репозиторію
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # 1. ТЕСТУВАННЯ
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: 8.0.x
+    - name: Restore dependencies
+      run: dotnet restore
+    - name: Run Tests
+      run: dotnet test --no-restore --verbosity normal
+
+  # 2. ЗБІРКА ТА ПУБЛІКАЦІЯ ОБРАЗУ (Docker)
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Log in to the Container registry
+      uses: docker/login-action@v2
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        file: MyWebApp/Dockerfile
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+  # 3. ДЕПЛОЙ В KUBERNETES
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DO_TOKEN }}
+
+      - name: Save DigitalOcean Kubeconfig
+        run: doctl kubernetes cluster kubeconfig save devops-lab-cluster
+
+      # Оновлюємо образ у файлі маніфесту перед застосуванням
+      - name: Update Image Name in Manifest
+        run: |
+          sed -i "s|ghcr.io/USERNAME/REPO_NAME:latest|${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest|g" k8s/deployment.yaml
+
+      # Деплой у середовище DEV
+      - name: Deploy to DEV
+        run: kubectl apply -f k8s/deployment.yaml -n dev
