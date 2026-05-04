@@ -1,0 +1,93 @@
+name: CI Pipeline with Quality Gates
+
+# Trigger pipeline on push to main branch and pull requests
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+
+jobs:
+  build-and-analyze:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Clone repository
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      # Step 2: Build the project
+      - name: Build project
+        run: |
+          echo "Building project..."
+          ./build.sh
+
+      # Step 3: Run static analysis and compute metrics
+      - name: Run static analysis
+        run: |
+          echo "Running analysis..."
+
+          # Run SAST tool and save report
+          ./run_sast.sh > sast_report.json
+
+          # Calculate cyclomatic complexity V(G)
+          ./calc_complexity.sh > complexity.txt
+
+          # Calculate defect density (DD)
+          ./calc_dd.sh > dd.txt
+
+          # Calculate technical debt ratio (TDR)
+          ./calc_tdr.sh > tdr.txt
+
+          # Count number of critical vulnerabilities
+          ./count_critical.sh > vul_crit.txt
+
+      # Step 4: Apply Quality Gates logic
+      - name: Apply Quality Gates
+        run: |
+          echo "Evaluating Quality Gates..."
+
+          # Threshold values (can be configured per project)
+          TH_COMP=15
+          TH_DD=0.1
+          TH_TDR=5
+
+          # Read computed metrics
+          V_COMP=$(cat complexity.txt)
+          DD=$(cat dd.txt)
+          TDR=$(cat tdr.txt)
+          VUL_CRIT=$(cat vul_crit.txt)
+
+          # Print values for debugging/logging
+          echo "Cyclomatic Complexity: $V_COMP"
+          echo "Defect Density: $DD"
+          echo "Technical Debt Ratio: $TDR"
+          echo "Critical Vulnerabilities: $VUL_CRIT"
+
+          # Check cyclomatic complexity threshold
+          if (( $(echo "$V_COMP > $TH_COMP" | bc -l) )); then
+            echo "FAIL: Cyclomatic Complexity exceeds threshold"
+            exit 1
+          fi
+
+          # Check defect density threshold
+          if (( $(echo "$DD > $TH_DD" | bc -l) )); then
+            echo "FAIL: Defect Density exceeds threshold"
+            exit 1
+          fi
+
+          # Check technical debt ratio threshold
+          if (( $(echo "$TDR > $TH_TDR" | bc -l) )); then
+            echo "FAIL: Technical Debt Ratio exceeds threshold"
+            exit 1
+          fi
+
+          # Check critical vulnerabilities condition
+          if [ "$VUL_CRIT" -ne 0 ]; then
+            echo "FAIL: Critical vulnerabilities detected"
+            exit 1
+          fi
+
+          # If all checks passed
+          echo "PASS: All Quality Gates satisfied"
+          exit 0
+
